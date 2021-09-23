@@ -1,0 +1,9 @@
+pygame
+pyserial
+more-itertools
+pylsl
+numpy
+scipy
+sklearn
+matplotlib
+optuna
