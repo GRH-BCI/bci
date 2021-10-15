@@ -1,3 +1,7 @@
+import sys
+
+import numpy as np
+
 from . import DSI
 from collections import deque
 
@@ -34,26 +38,40 @@ class DSIInput:
         def data_callback(*args):
             return self.data_callback(*args)
 
-        self.headset.SetSampleCallback(data_callback, None)
+        self.headset.ReallocateBuffers(1, 1)
+        self.headset.ConfigureBatch(100, 0.5)
+        ts = []
         while True:
-            self.headset.Idle(1.0)
+            t = self.headset.WaitForBatch()
+            ts.append(t)
+            print(ts)
+            print(self.headset.GetNumberOfBufferedSamples())
 
     def message_callback(self, message, level=0):
         print(f'DSI Message (level {level}): {message.decode()}')
         return 1
 
     def data_callback(self, _headset, timestamp, _userdata):
-        self.push(timestamp, [
-            self.headset.GetChannelByIndex(i).GetSignal()
-            for i in range(self.n_channels)
-        ])
+        for _ in range(self.headset.GetNumberOfBufferedSamples()):
+            self.push(timestamp, [
+                self.headset.GetChannelByIndex(i).ReadBuffered()
+                for i in range(self.n_channels)
+            ])
 
     def push(self, timestamp, data):
         # print(data)
+        if not(0.1 < timestamp < 1e100):
+            return
+
+        if not np.isclose(timestamp - self.latest_timestamp, 1 / self.fs):
+            print(f'Unexpected time delta: {timestamp - self.latest_timestamp}', file=sys.stderr)
+
         self.data.append((timestamp, data))
         self.latest_timestamp = max(self.latest_timestamp, timestamp)
 
     def push_marker(self, timestamp, marker):
+        if not (0.1 < timestamp < 1e100):
+            return
         self.markers.append((timestamp, marker))
         self.latest_timestamp = max(self.latest_timestamp, timestamp)
 

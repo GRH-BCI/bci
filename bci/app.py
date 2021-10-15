@@ -24,9 +24,10 @@ def wait_for_threads(threads: List[Thread], *, delay=0.1):
 
 class App:
     def __init__(self, *, freq=(12, 13, 14, 15), experiment_func,
-                 headset_port='COM19', leds_port='COM21'):
+                 headset_port='COM19', leds_port='COM21',
+                 fullscreen=False):
         self.freq = np.array(freq)
-        self.gui = BCIGUI(fullscreen=True)
+        self.gui = BCIGUI(fullscreen=fullscreen)
         self.leds = LEDs(self.freq)
         self.dsi_input = DSIInput()
         self.experiment_func = experiment_func
