@@ -1,3 +1,4 @@
+import sys
 import time
 from collections import deque
 from pathlib import Path
@@ -25,14 +26,33 @@ class FileRecorder(InputListener):
         self.markers_file = open(self.path / 'markers.csv', 'w')
         self.data_file.write(f'timestamp, {", ".join(channel_names)}\n')
         self.markers_file.write('timestamp, marker\n')
+        self.data_buffer = []
+        self.markers_buffer = []
 
     def ingest_data(self, timestamp, eeg):
-        self.data_file.write(f'{timestamp}, {", ".join(str(d) for d in eeg.X.flatten())}\n')
+        self.data_buffer.append((timestamp, eeg))
+
         self.data_file.flush()
 
     def ingest_marker(self, timestamp, marker):
+        self.markers_buffer.append((timestamp, marker))
         self.markers_file.write(f'{timestamp}, {marker}\n')
         self.markers_file.flush()
+
+    def loop(self):
+        while True:
+
+            if len(self.data_buffer) > 100:
+                for timestamp, eeg in self.data_buffer:
+                    self.data_file.write(f'{timestamp}, {", ".join(str(d) for d in eeg.X.flatten())}\n')
+                self.data_file.flush()
+
+            if len(self.markers_buffer) > 0:
+                for timestamp, marker in self.markers_buffer:
+                    self.markers_file.write(f'{timestamp}, {marker}\n')
+                self.markers_file.flush()
+
+            time.sleep(0.1)
 
 
 class DisconnectError(Exception):
@@ -82,7 +102,11 @@ class RealtimeModel(InputListener):
                 stimuli=eegs[0].stimuli,
                 fs=eegs[0].fs
             )
-            self.y_preds.append(self.model.predict(eeg)[0])
+            try:
+                self.y_preds.append(self.model.predict(eeg)[0])
+            except ValueError as e:
+                print(e, file=sys.stderr)
+                self.y_preds.append(None)
 
     def predict(self, timeout=None):
         start_time = time.time()
@@ -111,31 +135,22 @@ class RealtimeModel(InputListener):
 
 
 def collect_input(app: App, listeners: List[InputListener]):
-    while not app.dsi_input.connected:
+    while not app.dsi_input.is_attached():
         time.sleep(0.1)
 
     while True:
-        try:
-            timestamp, data = app.dsi_input.pull()
-        except IndexError:
-            data = None
 
-        if data is not None:
+        for timestamp, data in app.dsi_input.pop_all_data():
             eeg = EEG(
                 np.array(data)[np.newaxis, np.newaxis],
                 None,
-                np.array(app.dsi_input.channel_names),
+                np.array(app.dsi_input.get_channel_names()),
                 app.freq,
-                app.dsi_input.fs
+                app.dsi_input.get_sampling_rate()
             )
             for l in listeners:
                 l.ingest_data(timestamp, eeg)
 
-        try:
-            timestamp, marker = app.dsi_input.pull_marker()
-        except IndexError:
-            marker = None
-
-        if marker is not None:
+        for timestamp, marker in app.dsi_input.pop_all_markers():
             for l in listeners:
                 l.ingest_marker(timestamp, marker)

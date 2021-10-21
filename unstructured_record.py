@@ -13,7 +13,7 @@ from bci.util import FileRecorder, collect_input
 
 def main(app: App, *, path: Path):
     app.connect_to_headset()
-    file_logger = FileRecorder(path, app.dsi_input.channel_names)
+    file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
 
     threads = [
         Thread(target=lambda: collect_input(app, listeners=[file_logger])),
@@ -53,6 +53,7 @@ def main(app: App, *, path: Path):
 def experiment(app: App):
     time.sleep(60)
     app.gui.kill()
+    app.dsi_input.stop()
 
 
 if __name__ == '__main__':

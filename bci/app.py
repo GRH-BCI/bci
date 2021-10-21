@@ -6,7 +6,7 @@ import numpy as np
 import pygame
 from pylsl import pylsl
 
-from .dsi_input import DSIInput
+from .DSIInputCpp import DSIInput
 from .gui import BCIGUI
 from .leds import LEDs
 
@@ -51,7 +51,7 @@ class App:
         pygame.quit()  # XXX: shouldn't have to call pygame directly here
 
     def headset_thread(self):
-        while not self.dsi_input.connected:
+        while not self.dsi_input.is_attached():
             time.sleep(0.1)
         self.dsi_input.loop()
 
@@ -64,7 +64,7 @@ class App:
 
     def lsl_out_thread(self):
         try:
-            while not self.dsi_input.connected:
+            while not self.dsi_input.is_attached():
                 time.sleep(0.1)
             info = pylsl.StreamInfo('WearableSensing', 'EEG', self.dsi_input.n_channels,
                                     self.dsi_input.fs, 'float32', __file__)
@@ -90,7 +90,7 @@ class App:
         self.gui.set_text('Connecting to headset')
         while True:
             try:
-                self.dsi_input.connect(self.headset_port)
+                self.dsi_input.attach(self.headset_port)
                 break
             except Exception as ex:
                 print(ex)

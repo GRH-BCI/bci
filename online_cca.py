@@ -27,10 +27,11 @@ def main(app: App, *, model: RealtimeModel):
 def experiment(app: App, *, model: RealtimeModel):
     app.leds.start([0, 1, 2, 3])
 
-    while not app.dsi_input.connected:
+    while not app.dsi_input.is_attached():
         time.sleep(0.1)
 
     while True:
+        model.clear_buffers()
         y_pred = model.predict()
         dir = ['left', 'right', 'top', 'bottom'][y_pred]
         app.gui.set_arrow(dir)
@@ -50,6 +51,7 @@ if __name__ == '__main__':
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
     App(
+        fullscreen=True,
         experiment_func=partial(main, model=model),
         headset_port=config['headset_port'],
         leds_port=config['leds_port'],

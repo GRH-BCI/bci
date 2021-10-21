@@ -19,11 +19,12 @@ def main(app: App, *, model: RealtimeModel, path: Path):
     app.connect_to_leds()
     app.calibrate_leds()
 
-    file_logger = FileRecorder(path, app.dsi_input.channel_names)
+    file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
 
     threads = [
         Thread(target=lambda: collect_input(app, listeners=[file_logger, model])),
         Thread(target=lambda: experiment(app, model=model, path=path)),
+        Thread(target=lambda: file_logger.loop()),
     ]
     for t in threads:
         t.start()
@@ -33,7 +34,7 @@ def main(app: App, *, model: RealtimeModel, path: Path):
 def experiment(app: App, *, model: RealtimeModel, path: Path):
     app.leds.start([0, 1, 2, 3])
 
-    while not app.dsi_input.connected:
+    while not app.dsi_input.is_attached():
         time.sleep(0.1)
 
     ys_true = np.repeat([0, 1, 2, 3], 4).astype(int)
@@ -45,7 +46,7 @@ def experiment(app: App, *, model: RealtimeModel, path: Path):
         app.gui.set_arrow(dir_true)
         time.sleep(0.5)  # Allow some reaction time
         model.clear_buffers()
-        timestamp = app.dsi_input.latest_timestamp
+        timestamp = app.dsi_input.get_latest_timestamp()
         app.dsi_input.push_marker(timestamp, dir_true)
         try:
             y_pred = model.predict(timeout=10)
@@ -67,6 +68,7 @@ def experiment(app: App, *, model: RealtimeModel, path: Path):
 
     app.leds.stop()
     app.gui.kill()
+    app.dsi_input.stop()
 
 
 if __name__ == '__main__':
@@ -91,6 +93,7 @@ if __name__ == '__main__':
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
     App(
+        fullscreen=True,
         experiment_func=partial(main, model=model, path=path),
         headset_port=config['headset_port'],
         leds_port=config['leds_port'],

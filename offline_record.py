@@ -16,11 +16,12 @@ def main(app: App, *, path: Path, window_size: float):
     app.connect_to_leds()
     app.calibrate_leds()
 
-    file_logger = FileRecorder(path, app.dsi_input.channel_names)
+    file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
 
     threads = [
         Thread(target=lambda: collect_input(app, listeners=[file_logger])),
         Thread(target=lambda: experiment(app, window_size=window_size)),
+        Thread(target=lambda: file_logger.loop()),
     ]
     for t in threads:
         t.start()
@@ -30,7 +31,7 @@ def main(app: App, *, path: Path, window_size: float):
 def experiment(app: App, window_size: float):
     app.leds.start([0, 1, 2, 3])
 
-    while not app.dsi_input.connected:
+    while not app.dsi_input.is_attached():
         time.sleep(0.1)
 
     ys_true = np.repeat([0, 1, 2, 3], 4).astype(int)
@@ -40,7 +41,7 @@ def experiment(app: App, window_size: float):
         dir_true = ['left', 'right', 'top', 'bottom'][y_true]
         app.gui.set_arrow(dir_true)
         time.sleep(0.5)  # Allow some reaction time
-        timestamp = app.dsi_input.latest_timestamp
+        timestamp = app.dsi_input.get_latest_timestamp()
         app.dsi_input.push_marker(timestamp, dir_true)
         time.sleep(window_size)
         app.gui.set_arrow(None)
@@ -48,6 +49,7 @@ def experiment(app: App, window_size: float):
         time.sleep(2)  # Downtime
 
     app.gui.kill()
+    app.dsi_input.stop()
 
 
 if __name__ == '__main__':
