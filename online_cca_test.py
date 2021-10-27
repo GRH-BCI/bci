@@ -9,9 +9,9 @@ from threading import Thread
 import numpy as np
 import optuna as optuna
 
-from bci.app import App, wait_for_threads
+from bci.app import App
 from bci.model import load_model
-from bci.util import FileRecorder, collect_input, RealtimeModel
+from bci.util import FileRecorder, InputDistributor, RealtimeModel
 
 
 def main(app: App, *, model: RealtimeModel, path: Path):
@@ -20,15 +20,12 @@ def main(app: App, *, model: RealtimeModel, path: Path):
     app.calibrate_leds()
 
     file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
+    input_distributor = InputDistributor(app, listeners=[file_logger, model])
 
-    threads = [
-        Thread(target=lambda: collect_input(app, listeners=[file_logger, model])),
-        Thread(target=lambda: experiment(app, model=model, path=path)),
-        Thread(target=lambda: file_logger.loop()),
-    ]
-    for t in threads:
-        t.start()
-    wait_for_threads(threads)
+    Thread(target=lambda: input_distributor.loop()).start()
+    Thread(target=lambda: file_logger.loop()).start()
+
+    experiment(app, model=model, path=path)
 
 
 def experiment(app: App, *, model: RealtimeModel, path: Path):
@@ -65,10 +62,6 @@ def experiment(app: App, *, model: RealtimeModel, path: Path):
 
     np.savetxt(path/'y_true.txt', ys_true)
     np.savetxt(path/'y_pred.txt', ys_pred)
-
-    app.leds.stop()
-    app.gui.kill()
-    app.dsi_input.stop()
 
 
 if __name__ == '__main__':

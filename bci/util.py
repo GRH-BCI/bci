@@ -2,6 +2,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
+from queue import Queue, Empty, LifoQueue
 from threading import Lock
 from typing import List
 
@@ -26,30 +27,34 @@ class FileRecorder(InputListener):
         self.markers_file = open(self.path / 'markers.csv', 'w')
         self.data_file.write(f'timestamp, {", ".join(channel_names)}\n')
         self.markers_file.write('timestamp, marker\n')
-        self.data_buffer = []
-        self.markers_buffer = []
+        self.data_buffer = Queue()
+        self.markers_buffer = Queue()
 
     def ingest_data(self, timestamp, eeg):
-        self.data_buffer.append((timestamp, eeg))
-
-        self.data_file.flush()
+        self.data_buffer.put((timestamp, eeg))
 
     def ingest_marker(self, timestamp, marker):
-        self.markers_buffer.append((timestamp, marker))
-        self.markers_file.write(f'{timestamp}, {marker}\n')
-        self.markers_file.flush()
+        self.markers_buffer.put((timestamp, marker))
 
     def loop(self):
         while True:
 
-            if len(self.data_buffer) > 100:
-                for timestamp, eeg in self.data_buffer:
-                    self.data_file.write(f'{timestamp}, {", ".join(str(d) for d in eeg.X.flatten())}\n')
+            if self.data_buffer.qsize() > 100:
+                try:
+                    while True:
+                        timestamp, eeg = self.data_buffer.get_nowait()
+                        self.data_file.write(f'{timestamp}, {", ".join(str(d) for d in eeg.X.flatten())}\n')
+                except Empty:
+                    pass
                 self.data_file.flush()
 
-            if len(self.markers_buffer) > 0:
-                for timestamp, marker in self.markers_buffer:
-                    self.markers_file.write(f'{timestamp}, {marker}\n')
+            if self.markers_buffer.qsize() > 0:
+                try:
+                    while True:
+                        timestamp, marker = self.markers_buffer.get_nowait()
+                        self.markers_file.write(f'{timestamp}, {marker}\n')
+                except Empty:
+                    pass
                 self.markers_file.flush()
 
             time.sleep(0.1)
@@ -70,7 +75,7 @@ class RealtimeModel(InputListener):
         self.sample_counter = 0
         self.throw_on_disconnect = throw_on_disconnect
         self.eegs = None  # type: deque
-        self.last_data_time = None
+        self.last_timestamp = None
 
     def clear_buffers(self):
         if self.eegs is not None:
@@ -78,8 +83,9 @@ class RealtimeModel(InputListener):
         self.y_preds.clear()
         self.sample_counter = 0
 
-    def ingest_data(self, _timestamp, eeg):
-        self.last_data_time = time.time()
+    def ingest_data(self, timestamp, eeg):
+        # XXX: Probably shouldn't be doing computation-heavy stuff in a callback from the
+        # input-distribution thread
 
         if self.eegs is None:
             self.eegs = deque(maxlen=int(self.window_size * eeg.fs))
@@ -110,15 +116,13 @@ class RealtimeModel(InputListener):
 
     def predict(self, timeout=None):
         start_time = time.time()
-        self.last_data_time = time.time()
         while True:
             y_pred = self._try_predict()
             if y_pred is not None:
                 return y_pred
             if timeout is not None and time.time() > start_time + timeout:
                 raise TimeoutError()
-            if self.throw_on_disconnect and time.time() > self.last_data_time + 10:
-                raise DisconnectError()
+
             time.sleep(0.1)
 
     def _try_predict(self):
@@ -134,23 +138,41 @@ class RealtimeModel(InputListener):
         return y_preds[0]
 
 
-def collect_input(app: App, listeners: List[InputListener]):
-    while not app.dsi_input.is_attached():
-        time.sleep(0.1)
+class InputDistributor:
+    def __init__(self, app: App, listeners: List[InputListener], *, disconnect_timeout=1):
+        self.app = app
+        self.listeners = listeners
+        self.disconnect_timeout = disconnect_timeout
 
-    while True:
+    def wait_for_connection(self):
+        while True:
+            for _ in self.app.dsi_input.pop_all_data():
+                return
+            time.sleep(0.1)
 
-        for timestamp, data in app.dsi_input.pop_all_data():
-            eeg = EEG(
-                np.array(data)[np.newaxis, np.newaxis],
-                None,
-                np.array(app.dsi_input.get_channel_names()),
-                app.freq,
-                app.dsi_input.get_sampling_rate()
-            )
-            for l in listeners:
-                l.ingest_data(timestamp, eeg)
+    def loop(self):
+        last_data_time = time.time()
 
-        for timestamp, marker in app.dsi_input.pop_all_markers():
-            for l in listeners:
-                l.ingest_marker(timestamp, marker)
+        while True:
+
+            for timestamp, data in self.app.dsi_input.pop_all_data():
+                last_data_time = time.time()
+                eeg = EEG(
+                    np.array(data)[np.newaxis, np.newaxis],
+                    None,
+                    np.array(self.app.dsi_input.get_channel_names()),
+                    self.app.freq,
+                    self.app.dsi_input.get_sampling_rate()
+                )
+                for l in self.listeners:
+                    l.ingest_data(timestamp, eeg)
+
+            for timestamp, marker in self.app.dsi_input.pop_all_markers():
+                last_data_time = time.time()
+                for l in self.listeners:
+                    l.ingest_marker(timestamp, marker)
+
+            if self.disconnect_timeout is not None and time.time() - last_data_time > self.disconnect_timeout:
+                raise DisconnectError()
+
+            time.sleep(0.1)

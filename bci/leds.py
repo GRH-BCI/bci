@@ -25,4 +25,5 @@ class LEDs:
             ).encode())
 
     def stop(self):
-        self.port.write(b'111110000000')
+        if self.connected:
+            self.port.write(b'111110000000')

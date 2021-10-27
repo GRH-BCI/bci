@@ -7,34 +7,33 @@ from threading import Thread
 
 import numpy as np
 
-from bci.app import App, wait_for_threads
-from bci.util import FileRecorder, collect_input
+from bci.app import App
+from bci.util import FileRecorder, InputDistributor
 
 
-def main(app: App, *, path: Path, window_size: float):
+def main(app: App, *, path: Path, **kwargs):
     app.connect_to_headset()
     app.connect_to_leds()
     app.calibrate_leds()
 
     file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
+    input_distributor = InputDistributor(app, listeners=[file_logger])
+    input_distributor.wait_for_connection()
 
-    threads = [
-        Thread(target=lambda: collect_input(app, listeners=[file_logger])),
-        Thread(target=lambda: experiment(app, window_size=window_size)),
-        Thread(target=lambda: file_logger.loop()),
-    ]
-    for t in threads:
-        t.start()
-    wait_for_threads(threads)
+    Thread(target=lambda: input_distributor.loop()).start()
+    Thread(target=lambda: file_logger.loop()).start()
+
+    experiment(app, **kwargs)
 
 
-def experiment(app: App, window_size: float):
+def experiment(app: App, window_size: float, n_repeats: int):
     app.leds.start([0, 1, 2, 3])
 
-    while not app.dsi_input.is_attached():
-        time.sleep(0.1)
+    app.gui.set_text('Tap to start')
+    app.gui.wait_for_click()
+    app.gui.set_text('')
 
-    ys_true = np.repeat([0, 1, 2, 3], 4).astype(int)
+    ys_true = np.repeat([0, 1, 2, 3], n_repeats).astype(int)
     np.random.shuffle(ys_true)
 
     for y_true in ys_true:
@@ -48,9 +47,6 @@ def experiment(app: App, window_size: float):
         app.gui.set_text('')
         time.sleep(2)  # Downtime
 
-    app.gui.kill()
-    app.dsi_input.stop()
-
 
 if __name__ == '__main__':
     config = json.load(open('config.json'))
@@ -59,9 +55,13 @@ if __name__ == '__main__':
     path = Path(config['dataset_path']) / timestamp
     path.mkdir(parents=True, exist_ok=False)
 
-    window_size = 5
+    # n_repeats = 4
+    # window_size = 5
+    n_repeats = 4
+    window_size = 10
     App(
-        experiment_func=partial(main, path=path, window_size=window_size),
+        fullscreen=True,
+        experiment_func=partial(main, path=path, window_size=window_size, n_repeats=n_repeats),
         headset_port=config['headset_port'],
         leds_port=config['leds_port'],
     ).loop()

@@ -6,7 +6,7 @@ import numpy as np
 import pygame
 from pylsl import pylsl
 
-from .DSIInputCpp import DSIInput
+from .dsi_input import DSIInput
 from .gui import BCIGUI
 from .leds import LEDs
 
@@ -34,10 +34,15 @@ class App:
         self.headset_port = headset_port
         self.leds_port = leds_port
 
+    def kill(self):
+        self.gui.kill()
+        self.leds.stop()
+        self.dsi_input.stop()
+
     def loop(self):
         threads = [
-            Thread(target=self.headset_thread),
-            Thread(target=self.experiment_thread),
+            Thread(target=self.headset_thread, daemon=True),
+            Thread(target=self.experiment_thread, daemon=True),
         ]
         for t in threads:
             t.start()
@@ -48,43 +53,26 @@ class App:
                     t.join(timeout=0)
                 except TimeoutError:
                     pass
-        pygame.quit()  # XXX: shouldn't have to call pygame directly here
+
+        self.kill()
 
     def headset_thread(self):
-        while not self.dsi_input.is_attached():
-            time.sleep(0.1)
-        self.dsi_input.loop()
+        try:
+            while not self.dsi_input.is_attached():
+                time.sleep(0.1)
+            self.dsi_input.loop()
+        except Exception as ex:
+            print('Exception in headset_thread:', ex)
+            raise
 
     def experiment_thread(self):
         try:
             self.experiment_func(self)
+            print('Experiment finished!')
+            self.kill()
         except Exception as ex:
             print('Exception in experiment_thread:', ex)
             raise
-
-    def lsl_out_thread(self):
-        try:
-            while not self.dsi_input.is_attached():
-                time.sleep(0.1)
-            info = pylsl.StreamInfo('WearableSensing', 'EEG', self.dsi_input.n_channels,
-                                    self.dsi_input.fs, 'float32', __file__)
-            channels = info.desc().append_child('channels')
-            for name in self.dsi_input.channel_names:
-                channel = channels.append_child('channel')
-                channel.append_child_value('label', name)
-                channel.append_child_value('type', 'EEG')
-            outlet = pylsl.StreamOutlet(info, 9)
-            while True:
-                try:
-                    timestamp, data = self.dsi_input.pull()
-                    # print(timestamp)
-                    outlet.push_sample(data, timestamp)
-                    time.sleep(0.001)
-                except IndexError:
-                    continue
-
-        except Exception as ex:
-            print('Exception in lsl_out_thread:', ex)
 
     def connect_to_headset(self):
         self.gui.set_text('Connecting to headset')

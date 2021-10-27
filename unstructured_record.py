@@ -5,55 +5,25 @@ from functools import partial
 from pathlib import Path
 from threading import Thread
 
-import numpy as np
-
-from bci.app import App, wait_for_threads
-from bci.util import FileRecorder, collect_input
+from bci.app import App
+from bci.util import FileRecorder, InputDistributor
 
 
 def main(app: App, *, path: Path):
     app.connect_to_headset()
+
     file_logger = FileRecorder(path, app.dsi_input.get_channel_names())
+    input_distributor = InputDistributor(app, listeners=[file_logger])
+    input_distributor.wait_for_connection()
 
-    threads = [
-        Thread(target=lambda: collect_input(app, listeners=[file_logger])),
-        Thread(target=lambda: experiment(app)),
-    ]
-    for t in threads:
-        t.start()
-    wait_for_threads(threads)
+    Thread(target=lambda: input_distributor.loop()).start()
+    Thread(target=lambda: file_logger.loop()).start()
 
-
-# def experiment(app: App):
-#     HZ = 20
-#
-#     app.leds.frequencies = np.array([HZ, HZ, HZ, HZ])
-#
-#     app.connect_to_leds()
-#     app.calibrate_leds()
-#
-#     app.gui.set_text('Click to start')
-#     app.gui.wait_for_click()
-#
-#     app.dsi_input.push_marker(app.dsi_input.latest_timestamp, 'baseline')
-#     app.gui.set_text('Baseline (30 seconds)')
-#     time.sleep(30)
-#
-#     app.gui.set_text('Click to continue')
-#     app.gui.wait_for_click()
-#
-#     app.dsi_input.push_marker(app.dsi_input.latest_timestamp, f'{HZ}Hz')
-#     app.gui.set_text('Frequency (30 seconds)')
-#     app.leds.start([0, 1, 2, 3])
-#     time.sleep(30)
-#     app.leds.stop()
-#     app.gui.kill()
+    experiment()
 
 
-def experiment(app: App):
+def experiment():
     time.sleep(60)
-    app.gui.kill()
-    app.dsi_input.stop()
 
 
 if __name__ == '__main__':

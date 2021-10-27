@@ -1,13 +1,12 @@
 import json
-import time
 from functools import partial
 from threading import Thread
 
 import optuna as optuna
 
-from bci.app import App, wait_for_threads
+from bci.app import App
 from bci.model import load_model
-from bci.util import RealtimeModel, collect_input
+from bci.util import RealtimeModel, InputDistributor
 
 
 def main(app: App, *, model: RealtimeModel):
@@ -15,20 +14,16 @@ def main(app: App, *, model: RealtimeModel):
     app.connect_to_leds()
     app.calibrate_leds()
 
-    threads = [
-        Thread(target=lambda: collect_input(app, listeners=[model])),
-        Thread(target=lambda: experiment(app, model=model)),
-    ]
-    for t in threads:
-        t.start()
-    wait_for_threads(threads)
+    input_distributor = InputDistributor(app, listeners=[model])
+    input_distributor.wait_for_connection()
+
+    Thread(target=lambda: input_distributor.loop()).start()
+
+    experiment(app, model=model)
 
 
 def experiment(app: App, *, model: RealtimeModel):
     app.leds.start([0, 1, 2, 3])
-
-    while not app.dsi_input.is_attached():
-        time.sleep(0.1)
 
     while True:
         model.clear_buffers()
