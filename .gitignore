@@ -1,3 +1,5 @@
+*.pgc
+
 .idea/
 openvibe/
 *.dll
