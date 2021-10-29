@@ -151,6 +151,9 @@ class InputDistributor:
             time.sleep(0.1)
 
     def loop(self):
+        self.wait_for_connection()
+        channel_names = np.array(self.app.dsi_input.get_channel_names())
+
         last_data_time = time.time()
 
         while True:
@@ -160,7 +163,7 @@ class InputDistributor:
                 eeg = EEG(
                     np.array(data)[np.newaxis, np.newaxis],
                     None,
-                    np.array(self.app.dsi_input.get_channel_names()),
+                    channel_names,
                     self.app.freq,
                     self.app.dsi_input.get_sampling_rate()
                 )
