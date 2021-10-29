@@ -47,6 +47,9 @@ def experiment(app: App, window_size: float, n_repeats: int):
         app.gui.set_text('')
         time.sleep(2)  # Downtime
 
+    app.gui.kill()
+    time.sleep(5)
+
 
 if __name__ == '__main__':
     config = json.load(open('config.json'))
@@ -59,6 +62,7 @@ if __name__ == '__main__':
     # window_size = 5
     n_repeats = 4
     window_size = 10
+    # window_size = 5
     App(
         fullscreen=True,
         experiment_func=partial(main, path=path, window_size=window_size, n_repeats=n_repeats),
