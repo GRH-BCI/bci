@@ -1,6 +1,6 @@
 import numpy as np
 
-from .eeg import EEG
+from bci.eeg import EEG
 
 
 def cca(x, y):
@@ -59,17 +59,22 @@ def fbcca_scores(eeg, filter_banks, n_harmonics=3, a=1.25, b=0.25):
 
 class CCA:
     def __init__(self, *, filter_banks=((10, 17), (20, 34), (30, 51)), n_harmonics=3, a=1.25, b=0.25,
-                 preprocess = lambda x: x):
+                 preprocess=lambda x: x):
         self.filter_banks = filter_banks
         self.n_harmonics = n_harmonics
         self.coef_weights = np.power(np.arange(1, len(self.filter_banks)+1), -a) + b
         self.preprocess = preprocess
+        self.baseline = None
 
     def predict(self, eeg: EEG, return_weights=False):
         eeg = self.preprocess(eeg)
         p = np.array([cca_scores(eeg.bandpass(fb), n_harmonics=self.n_harmonics)
                       for fb in self.filter_banks])
         p = np.sum(p * self.coef_weights[:, np.newaxis, np.newaxis], axis=0)
+
+        if self.baseline is not None:
+            p = p / self.baseline
+
         if return_weights:
             return p
         else:

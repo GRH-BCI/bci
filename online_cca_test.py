@@ -10,7 +10,7 @@ import numpy as np
 import optuna as optuna
 
 from bci.app import App
-from bci.model import load_model
+from cca.model import load_model
 from bci.util import FileRecorder, InputDistributor, RealtimeModel
 
 

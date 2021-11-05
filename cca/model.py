@@ -1,13 +1,14 @@
 from copy import copy
+from typing import Union
 
 import numpy as np
 import optuna
 
-from .eeg import EEG
+from bci.eeg import EEG
 from .cca import CCA
 
 
-def load_model(trial: optuna.trial.FrozenTrial, *, window_size):
+def load_model(trial: Union[optuna.trial.BaseTrial], *, window_size):
     channels = [c for c in [
         trial.suggest_categorical('Pz', ['Pz', '']),
         trial.suggest_categorical('P3', ['P3', '']),
@@ -17,6 +18,8 @@ def load_model(trial: optuna.trial.FrozenTrial, *, window_size):
         trial.suggest_categorical('O1', ['O1', '']),
         trial.suggest_categorical('O2', ['O2', '']),
     ] if c != '']
+    if not channels:
+        raise optuna.exceptions.TrialPruned()
 
     ref = trial.suggest_categorical('ref', ['A2', 'Cz', ''])
 

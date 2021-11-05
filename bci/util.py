@@ -65,17 +65,14 @@ class DisconnectError(Exception):
 
 
 class RealtimeModel(InputListener):
-    def __init__(self, model, *, window_size, n_preds, preds_per_sec,
-                 throw_on_disconnect=True):
+    def __init__(self, model, *, window_size, n_preds, preds_per_sec):
         self.model = model
         self.window_size = window_size
         self.y_preds = deque(maxlen=n_preds)
         self.preds_per_sec = preds_per_sec
         self.lock = Lock()
         self.sample_counter = 0
-        self.throw_on_disconnect = throw_on_disconnect
         self.eegs = None  # type: deque
-        self.last_timestamp = None
 
     def clear_buffers(self):
         if self.eegs is not None:
@@ -83,7 +80,7 @@ class RealtimeModel(InputListener):
         self.y_preds.clear()
         self.sample_counter = 0
 
-    def ingest_data(self, timestamp, eeg):
+    def ingest_data(self, _timestamp, eeg):
         # XXX: Probably shouldn't be doing computation-heavy stuff in a callback from the
         # input-distribution thread
 
@@ -120,7 +117,7 @@ class RealtimeModel(InputListener):
             y_pred = self._try_predict()
             if y_pred is not None:
                 return y_pred
-            if timeout is not None and time.time() > start_time + timeout:
+            if timeout is not None and time.time() >= start_time + timeout:
                 raise TimeoutError()
 
             time.sleep(0.1)
@@ -136,6 +133,31 @@ class RealtimeModel(InputListener):
             return None
 
         return y_preds[0]
+
+    def test(self, eeg: EEG, *, return_='acc'):
+        ys_pred = []
+        for i_trial in range(eeg.n_trials):
+            self.clear_buffers()
+            # print(f'{i_trial} / {eeg.n_trials}')
+            y_pred = np.nan
+            for i_sample in range(eeg.n_samples):
+                # print(f'{i_sample} // {eeg.n_samples}')
+                eeg_i = EEG(X=eeg.X[i_trial:i_trial+1, i_sample:i_sample+1], y=eeg.y[i_trial:i_trial+1], montage=eeg.montage, stimuli=eeg.stimuli, fs=eeg.fs)
+                self.ingest_data(None, eeg_i)
+                try:
+                     y_pred = self.predict(timeout=0)
+                     break
+                except TimeoutError:
+                    pass
+            ys_pred.append(y_pred)
+
+        # print(ys_pred, eeg.y)
+        if return_ == 'acc':
+            return (ys_pred == eeg.y).astype(float).mean()
+        elif return_ == 'y_pred':
+            return np.array(ys_pred)
+        else:
+            raise ValueError()
 
 
 class InputDistributor:
