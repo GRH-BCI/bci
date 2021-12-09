@@ -1,3 +1,6 @@
+*.pickle
+src/
+
 *.pgc
 
 .idea/
