@@ -1,32 +1,15 @@
 import numpy as np
+import svcca
 
 from bci.eeg import EEG
 
 
-def cca(x, y):
-    # Based on github.com/stochasticresearch/depmeas
-    p1, p2 = x.shape[1], y.shape[1]
-    x = x - x.mean(axis=0, keepdims=True)
-    y = y - y.mean(axis=0, keepdims=True)
-    Qx, Rx = np.linalg.qr(x)
-    Qy, Ry = np.linalg.qr(y)
-
-    x_rank = np.linalg.matrix_rank(Rx)
-    if x_rank == 0:
-        raise ValueError('rank(x) == 0')
-    elif x_rank < p1:
-        Qx = Qx[:, :x_rank]
-
-    y_rank = np.linalg.matrix_rank(Ry)
-    if y_rank == 0:
-        raise ValueError('rank(y) == 0')
-    elif y_rank < p2:
-        Qy = Qy[:, :y_rank]
-
-    _, r, _ = np.linalg.svd(Qx.T @ Qy)
-    r = np.clip(r, 0, 1)
-
-    return r[0]
+def cca(x, y, *, n=None):
+    p = svcca.cca_core.get_cca_similarity(x.T, y.T, compute_coefs=False, compute_dirns=False)['cca_coef1']
+    if n is None:
+        return p[0]
+    else:
+        return p[:n]
 
 
 def reference(freq, n_samples, *, n_harmonics, fs):
@@ -38,22 +21,22 @@ def reference(freq, n_samples, *, n_harmonics, fs):
     return np.array(ref).T
 
 
-def cca_scores(eeg, frequencies=None, n_harmonics=3, fs=None, stimuli=None):
+def cca_scores(eeg, frequencies=None, n_harmonics=3, fs=None, n_components=None, refs=None):
     frequencies = frequencies if frequencies is not None else eeg.stimuli
-    fs = fs if fs is not None else eeg.fs
     X = eeg.X if isinstance(eeg, EEG) else eeg
-    p = np.zeros((X.shape[0], len(frequencies)))
+
+    if n_components is None:
+        p = np.zeros((X.shape[0], len(frequencies)))
+    else:
+        p = np.zeros((X.shape[0], len(frequencies), n_components))
+
+    if refs is None:
+        fs = fs if fs is not None else eeg.fs
+        refs = [reference(freq, X.shape[1], n_harmonics=n_harmonics, fs=fs) for freq in frequencies]
+
     for i, x in enumerate(X):
-        for j, freq in enumerate(frequencies):
-            ref = reference(freq, x.shape[0], n_harmonics=n_harmonics, fs=fs)
-            p[i, j] = cca(x, ref)
-    return p
-
-
-def fbcca_scores(eeg, filter_banks, n_harmonics=3, a=1.25, b=0.25):
-    weights = np.power(np.arange(1, len(filter_banks) + 1), -a) + b
-    p = np.array([cca_scores(eeg.bandpass(fb), n_harmonics=n_harmonics) for fb in filter_banks])
-    p = np.sum(p * weights[:, np.newaxis, np.newaxis], axis=0)
+        for j, ref in enumerate(refs):
+            p[i, j] = cca(x, ref, n=n_components)
     return p
 
 
@@ -79,3 +62,5 @@ class CCA:
             return p
         else:
             return p.argmax(axis=1)
+
+
