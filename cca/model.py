@@ -5,7 +5,7 @@ import numpy as np
 import optuna
 
 from bci.eeg import EEG
-from .cca import CCA
+from cca import CCA
 
 
 def load_model(trial: Union[optuna.trial.BaseTrial], *, window_size):

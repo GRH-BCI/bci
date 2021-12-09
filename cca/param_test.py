@@ -8,7 +8,7 @@ import numpy as np
 import click
 
 from bci.eeg import EEG
-from cca.model import load_model
+from model import load_model
 from bci.util import RealtimeModel
 
 import optuna
@@ -18,15 +18,6 @@ from util.optimize import optimize_parallel
 def test(trial: optuna.trial.FrozenTrial, *, eegs, window_size, n_preds, preds_per_sec):
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
-
-    import cca.model
-    cca_model = model.model  # type: cca.model.CCA
-    baseline = np.mean([
-        cca_model.predict(eeg, return_weights=True).mean(axis=0)
-        for eeg in eegs
-    ], axis=0)
-    print('Baseline:', baseline)
-    cca_model.baseline = baseline
 
     for eeg in eegs:
         y_pred, y_true = model.test(eeg, return_='y_pred'), eeg.y

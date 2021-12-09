@@ -19,14 +19,6 @@ def objective(trial: optuna.Trial, *, eegs, window_size, n_preds, preds_per_sec)
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
 
-    import cca.model
-    cca_model = model.model  # type: cca.model.CCA
-    baseline = np.mean([
-        cca_model.predict(eeg, return_weights=True).mean(axis=0)
-        for eeg in eegs
-    ], axis=0)
-    cca_model.baseline = baseline
-
     return np.mean([model.test(eeg) for eeg in eegs])
 
 
@@ -42,7 +34,6 @@ def objective(trial: optuna.Trial, *, eegs, window_size, n_preds, preds_per_sec)
 @click.option('--timestamp', default=datetime.now().strftime('%Y-%m-%d-%H-%M-%S'), show_default=True)
 @click.option('--n-trials', default=1500, show_default=True)
 @click.option('--n-jobs', default=multiprocessing.cpu_count()-1, show_default=True)
-@click.option('--baseline', default=False, type=bool)
 def main(*,
          db: str,
          dataset: str,
@@ -55,7 +46,6 @@ def main(*,
          timestamp: str,
          n_trials: int,
          n_jobs: int,
-         baseline: bool,
          ):
     eegs = [EEG.load(Path(dataset)/e) for e in eeg]
     study = optuna.create_study(
@@ -65,18 +55,18 @@ def main(*,
         sampler=optuna.samplers.NSGAIISampler(),
         load_if_exists=True,
     )
-    # study.optimize(
-    #     partial(objective, window_size=window_size, eegs=eegs, n_preds=n_preds, preds_per_sec=preds_per_sec),
-    #     n_trials=n_trials,
-    #     catch=(ValueError,),
-    # )
-    optimize_parallel(
-        study,
-        partial(objective, window_size=window_size, eegs=eegs, n_preds=n_preds, preds_per_sec=preds_per_sec),
+
+    if n_jobs > 0:
+        optimize = lambda **kwargs: optimize_parallel(study, n_jobs=n_jobs, **kwargs)
+    else:
+        optimize = lambda **kwargs: study.optimize(**kwargs)
+
+    optimize(
+        func=partial(objective, window_size=window_size, eegs=eegs, n_preds=n_preds, preds_per_sec=preds_per_sec),
         n_trials=n_trials,
-        n_jobs=n_jobs,
         catch=(ValueError,),
     )
+
     print(study.best_value)
     print(study.best_params)
 
