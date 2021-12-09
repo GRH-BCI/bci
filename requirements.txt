@@ -12,3 +12,4 @@ psycopg2
 click
 pandas
 git+ssh://git@github.com/GRH-BCI/svcca
+cca-zoo
