@@ -1,6 +1,8 @@
+import contextlib
 import sys
 import time
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from queue import Queue, Empty, LifoQueue
 from threading import Lock
@@ -201,3 +203,28 @@ class InputDistributor:
                 raise DisconnectError()
 
             time.sleep(0.1)
+
+
+def chunkify(eeg: EEG, window_size: float, stride: float = 0.25):
+    X, y = [], []
+    for i_trial in range(eeg.n_trials):
+        for i_sample in np.arange(0, eeg.n_samples - eeg.fs * window_size, stride * eeg.fs):
+            window = int(i_sample), int(i_sample + window_size * eeg.fs)
+            if window[1] > eeg.n_samples:
+                print('...')
+
+            assert window[1] <= eeg.n_samples
+            X.append(eeg.X[i_trial, window[0]:window[1], :])
+            y.append(eeg.y[i_trial])
+    X, y = np.array(X), np.array(y)
+    return EEG(X=X, y=y, montage=eeg.montage, stimuli=eeg.stimuli, fs=eeg.fs)
+
+
+@contextlib.contextmanager
+def timer(section=None):
+    start_time = datetime.now()
+    try:
+        yield
+    finally:
+        end_time = datetime.now()
+        print(f'{section + " took" if section is not None else "Took"} {end_time-start_time}')

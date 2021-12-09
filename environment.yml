@@ -1,0 +1,23 @@
+name: bci
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - faiss-gpu
+  - cupy
+  - pip
+  - pip:
+    - numpy
+    - scipy
+    - pandas
+    - sklearn
+    - pygame
+    - pyserial
+    - more-itertools
+    - matplotlib
+    - optuna
+    - optuna-dashboard
+    - psycopg2
+    - click
+    - pylsl
+    - cca-zoo

@@ -75,3 +75,45 @@ class EEG:
             y.append(np.where(class_names == marker)[0][0])
 
         return cls(np.array(X), np.array(y), montage, class_stimuli, fs)
+
+    @classmethod
+    def load_stream(cls,  path, *, fs=300):
+        path = Path(path)
+
+        data_table = pd.read_table(path / 'data.csv', sep=',', dtype=float, on_bad_lines='skip', engine='python')
+        data_table.rename(columns=lambda s: s.strip(), inplace=True)
+        markers_table = pd.read_table(path / 'markers.csv', sep=', ', engine='python')
+
+        montage = data_table.keys()
+        montage = montage[~montage.isin(['timestamp', 'TRG'])]
+
+        class_names = np.array(['left', 'right', 'top', 'bottom'])
+        class_stimuli = np.loadtxt(path / 'frequencies.txt', delimiter=',')
+
+        X = np.array(data_table[montage])
+        y = np.zeros(X.shape[0])
+        y[:] = np.nan
+
+        marker_ranges = [
+            (markers_table.iloc[i].marker, (markers_table.iloc[i].timestamp, markers_table.iloc[i+1].timestamp))
+            for i in range(markers_table.shape[0]-1)
+        ]
+        marker_ranges.append((markers_table.iloc[-1].marker, (markers_table.iloc[-1].timestamp, np.inf)))
+
+        for marker, (t_start, t_end) in marker_ranges:
+            filter_ = (data_table.timestamp >= t_start) & (data_table.timestamp < t_end)
+            filter_ = np.array(filter_)
+            y[filter_] = np.where(class_names == marker)[0][0]
+
+        X, y = X[np.newaxis], y[np.newaxis]
+
+        return cls(X, y, montage, class_stimuli, fs)
+
+    def __getitem__(self, item):
+        return EEG(
+            X=self.X[item],
+            y=self.y[item[0] if isinstance(item, tuple) else item],
+            montage=self.montage,
+            stimuli=self.stimuli,
+            fs=self.fs,
+        )
