@@ -11,7 +11,7 @@ import optuna as optuna
 
 from bci.app import App
 from fbcca.param_search import load_model
-from bci.util import FileRecorder, InputDistributor, RealtimeModel
+from bci.input_distributor import FileRecorder, InputDistributor, RealtimeModel
 
 
 def main(app: App, *, model: RealtimeModel, path: Path):

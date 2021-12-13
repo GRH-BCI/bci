@@ -6,9 +6,10 @@ from typing import Tuple
 import numpy as np
 import click
 
-from bci.eeg import EEG
-from fbcca.cca import CACC
-from bci.util import RealtimeModel, chunkify, timer
+from bci.eeg import EEG, chunkify
+from cacc.cacc import CACC
+from bci.input_distributor import RealtimeModel
+from util import timer
 
 
 def test(eegs_train, eegs_test, *, window_size: float, n_preds: int, preds_per_sec: int):

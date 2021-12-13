@@ -9,7 +9,7 @@ import numpy as np
 import click
 
 from bci.eeg import EEG
-from bci.util import RealtimeModel
+from bci.input_distributor import RealtimeModel
 
 import optuna
 

@@ -8,7 +8,7 @@ from threading import Thread
 import numpy as np
 
 from bci.app import App
-from bci.util import FileRecorder, InputDistributor
+from bci.input_distributor import FileRecorder, InputDistributor
 
 
 def main(app: App, *, path: Path, **kwargs):

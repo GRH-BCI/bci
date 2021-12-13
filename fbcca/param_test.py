@@ -1,6 +1,3 @@
-import multiprocessing
-from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Tuple
 
@@ -8,11 +5,10 @@ import numpy as np
 import click
 
 from bci.eeg import EEG
-from param_search import load_model
-from bci.util import RealtimeModel
+from fbcca.param_search import load_model
+from bci.input_distributor import RealtimeModel
 
 import optuna
-from util.optimize import optimize_parallel
 
 
 def test(trial: optuna.trial.FrozenTrial, *, eegs, window_size, n_preds, preds_per_sec):

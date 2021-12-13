@@ -5,12 +5,12 @@ from typing import Tuple
 import numpy as np
 import click
 
-from bci.eeg import EEG
-from bci.util import RealtimeModel, chunkify
+from bci.eeg import EEG, chunkify
+from bci.input_distributor import RealtimeModel
 
 import optuna
 
-from param_search import load_model
+from .param_search import load_model
 
 
 def test(trial: optuna.trial.FrozenTrial, *, eegs_train, eegs_test, window_size: float, n_preds: int, preds_per_sec: int):

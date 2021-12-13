@@ -8,8 +8,8 @@ from typing import Tuple
 import numpy as np
 import click
 
-from bci.eeg import EEG
-from bci.util import RealtimeModel, chunkify
+from bci.eeg import EEG, chunkify
+from bci.input_distributor import RealtimeModel
 
 import optuna
 

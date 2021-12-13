@@ -6,7 +6,7 @@ import optuna as optuna
 
 from bci.app import App
 from fbcca.param_search import load_model
-from bci.util import RealtimeModel, InputDistributor
+from bci.input_distributor import RealtimeModel, InputDistributor
 
 
 def main(app: App, *, model: RealtimeModel):
