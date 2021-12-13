@@ -1,11 +1,24 @@
-import time
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 
+import time
 import pygame
 from collections import deque
 
 
 class BCIGUI:
-    def __init__(self, fullscreen=True) -> object:
+    """
+    Provides a simple interface for SSVEP training built with `pygame`.
+
+    The resulting GUI is a window (default fullscreen) that can show text centered on the screen, and an arrow
+    that points either left, right, top or bottom.
+
+    The intended use case is to run BCUIGUI.loop() one thread, then interact with the GUI asynchronously from other
+    threads using `set_text()`, `set_arrow()`, `wait_for_click()` and `kill()`.
+    """
+
+    def __init__(self, fullscreen=True):
+        """ Instantiates a BCIGUI object. """
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0) if fullscreen else (640, 480))
         self.background_colour = (100, 100, 100)
@@ -17,32 +30,43 @@ class BCIGUI:
         self.arrow_direction = None
         self.done = False
         self.recent_events = deque(maxlen=20)
-        self.clock = clock = pygame.time.Clock()
 
     def loop(self):
+        """ Repeatedly calls `self.tick()` until killed. """
+        clock = pygame.time.Clock()
         while not self.done:
             self.tick()
+            clock.tick(60)
         pygame.quit()
 
     def tick(self):
+        """ Updates one frame of the GUI (processes inputs, paints text/arrows, etc.). """
         self._process_inputs()
         self._paint_all()
         pygame.display.flip()
-        self.clock.tick(60)
+        if self.done:
+            pygame.quit()
         return not self.done
 
     def kill(self):
+        """ Marks the GUI to be killed on next `tick()`. """
         self.done = True
 
     def set_text(self, text):
+        """ Display text at the center of the screen, overwriting previous text if it was already there. """
         self.message = self.message_font.render(text or '', True, self.message_colour)
 
     def set_arrow(self, direction):
+        """ Change which direction the arrow is pointing at ('left', 'right', 'top', or 'bottom'). """
         self.arrow_direction = direction
 
     def wait_for_click(self):
+        """ Waits until the user clicks anywhere on the screen. Can be used to wait for user acknowledgement.
+        Note that this doesn't `tick()` the GUI while waiting, so `loop()` must be called in another thread concurrent
+        to `wait_for_click()`.
+        """
         self.recent_events.clear()
-        while True:
+        while not self.done:
             for event in self.recent_events:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     return

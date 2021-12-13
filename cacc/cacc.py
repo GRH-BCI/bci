@@ -3,7 +3,7 @@ from collections import defaultdict
 import numpy as np
 
 from bci.eeg import EEG
-from cca.cca import cca_scores
+from fbcca.cca import cca_scores
 
 
 class FaissKMeans:

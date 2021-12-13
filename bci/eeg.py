@@ -1,4 +1,5 @@
 import sys
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,11 +10,16 @@ from scipy import signal
 
 @dataclass
 class EEG:
-    X: np.ndarray  # shape: trials, samples, channels
-    y: np.ndarray  # shape: trials,
-    montage: np.ndarray
-    stimuli: np.ndarray
-    fs: float
+    """
+    Stores EEG data and associated metadata. Handles loading EEG from a collection of `.csv` files,
+    as well as some simple filtering.
+    """
+
+    X: np.ndarray  # EEG data (shape: trials, samples, channels)
+    y: np.ndarray  # Ground-truth y-value for each trial (shape: trials,)
+    montage: np.ndarray  # Channel names (shape: channels,)
+    stimuli: np.ndarray  # Frequencies corresponding to each stimulus
+    fs: float  # Sampling frequency
 
     @property
     def n_trials(self):
@@ -28,25 +34,48 @@ class EEG:
         return self.X.shape[2]
 
     def bandpass(self, window):
-        # b, a = signal.butter(5, window, btype='band', fs=self.fs)
-        # X = signal.lfilter(b, a, self.X, axis=1)
-
+        """ Applies butterworth band-pass filter
+        :param window: Tuple (low_hz, high_hz) defining the bandpass window
+        :return: New EEG instance with bandpass filter applied
+        """
         sos = signal.butter(5, window, btype='band', fs=self.fs, output='sos')
         X = signal.sosfiltfilt(sos, self.X, axis=1, padtype='odd')
 
         return EEG(X, self.y, self.montage, self.stimuli, self.fs)
 
     def notch(self, freq):
+        """ Applies notch filter
+        :param freq: Frequency to filter out
+        :return: New EEG instance with notch filter applied
+        """
         b, a = signal.iirnotch(freq, 30, self.fs)
         X = signal.lfilter(b, a, self.X, axis=1)
-
-        # b, a = signal.iirnotch(60, 20, self.fs)
-        # X = signal.filtfilt(b, a, self.X, axis=1, padtype='odd')
 
         return EEG(X, self.y, self.montage, self.stimuli, self.fs)
 
     @classmethod
     def load(cls, path, *, fs=300, epoch_start=0, epoch_length=8):
+        """
+        Loads EEG data from a given path, splitting it into trials according to the associated markers.
+
+        Expects the EEG to be in `[path]/data.csv`, a csv file with headers. Timestamp data is extracted from the header
+        "timestamp", which must be present. The header "TRG", if present, is ignored (this corresponds to trigger data,
+        not a channel, which `EEG` does not use. The rest of the headers are expected to correspond to channels names,
+        which will populate the `EEG.montage` field. The rows must be sorted by increasing timestamp.
+
+        The markers are expected to be in `[path]/markers.csv`, which must have two columns: "timestamp" and "marker".
+        Each row corresponds to a trial, with timestamps in the range [`row.timestamp+epoch_start`,
+        `row.timestamp+epoch_start+epoch_length`). The trial's ground-truth y-value is `int(row.marker)`.
+
+        The stimulation frequencies are extracted from `[path]/frequencies.txt`, which must contain a single line of
+        comma-separated frequency values.
+
+        :param path: Path to directory containing the EEG data files
+        :param fs: Sampling frequency
+        :param epoch_start: Offset from marker timestamp to trial start
+        :param epoch_length: Size of trial epoch
+        :return: Loaded EEG instance
+        """
         path = Path(path)
         epoch_size = int(epoch_length * fs)
 
@@ -57,8 +86,11 @@ class EEG:
         montage = data_table.keys()
         montage = montage[~montage.isin(['timestamp', 'TRG'])]
 
-        class_names = np.array(['left', 'right', 'top', 'bottom'])
-        class_stimuli = np.loadtxt(path / 'frequencies.txt', delimiter=',')
+        try:
+            class_stimuli = np.loadtxt(path / 'frequencies.txt', delimiter=',')
+        except OSError:
+            warnings.warn('Cannot load frequencies.txt, assuming legacy values of [12, 13, 14, 15]')
+            class_stimuli = np.array([12, 13, 14, 15])
 
         X, y = [], []
         for _, (timestamp, marker) in markers_table.iterrows():
@@ -72,7 +104,11 @@ class EEG:
             data = data[montage]
 
             X.append(data)
-            y.append(np.where(class_names == marker)[0][0])
+            if isinstance(marker, str):
+                y.append(np.where(np.array(['left', 'right', 'top', 'bottom']) == marker)[0][0])
+                warnings.warn(f'Interpreting legacy marker type {marker} as class {y[-1]}')
+            else:
+                y.append(int(marker))
 
         return cls(np.array(X), np.array(y), montage, class_stimuli, fs)
 
@@ -87,12 +123,14 @@ class EEG:
         montage = data_table.keys()
         montage = montage[~montage.isin(['timestamp', 'TRG'])]
 
-        class_names = np.array(['left', 'right', 'top', 'bottom'])
-        class_stimuli = np.loadtxt(path / 'frequencies.txt', delimiter=',')
+        try:
+            class_stimuli = np.loadtxt(path / 'frequencies.txt', delimiter=',')
+        except OSError:
+            warnings.warn('Cannot load frequencies.txt, assuming legacy values of [12, 13, 14, 15]')
+            class_stimuli = np.array([12, 13, 14, 15])
 
         X = np.array(data_table[montage])
-        y = np.zeros(X.shape[0])
-        y[:] = np.nan
+        y = np.zeros(X.shape[0]); y[:] = np.nan
 
         marker_ranges = [
             (markers_table.iloc[i].marker, (markers_table.iloc[i].timestamp, markers_table.iloc[i+1].timestamp))
@@ -103,7 +141,11 @@ class EEG:
         for marker, (t_start, t_end) in marker_ranges:
             filter_ = (data_table.timestamp >= t_start) & (data_table.timestamp < t_end)
             filter_ = np.array(filter_)
-            y[filter_] = np.where(class_names == marker)[0][0]
+            if isinstance(marker, str):
+                y[filter_] = np.where(np.array(['left', 'right', 'top', 'bottom']) == marker)[0][0]
+                warnings.warn(f'Interpreting legacy marker type {marker} as class {y[filter_]}')
+            else:
+                y[filter_] = int(marker)
 
         X, y = X[np.newaxis], y[np.newaxis]
 

@@ -4,7 +4,7 @@ import numpy as np
 from cca_zoo.models import MCCA
 
 from bci.eeg import EEG
-from cca.cca import cca_scores
+from fbcca.cca import cca_scores
 
 
 class MsetCCA:

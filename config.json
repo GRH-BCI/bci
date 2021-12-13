@@ -1,7 +1,0 @@
-{
-  "dataset_path": "C:/datasets/wearable-sensing",
-  "leds_port": "COM21",
-  "headset_port": "COM19",
-  "optuna_storage": "sqlite:///C:/src/cca/storage2.db",
-  "optuna_study_name": "no-name-ac4fb1db-b7cd-445a-929f-c751ce1604a2"
-}
