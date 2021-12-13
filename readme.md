@@ -15,12 +15,18 @@ To eventually be able to install it, you have to make an ssh key and add it to y
 
 then paste the clipboard contents in the "Key" field after clicking on "New SSH Key" in the "SSH and GPG keys" section of your GitHub  settings.
 
+You can alternatively add it as a deploy key to the repository directly at https://github.com/GRH-BCI/svcca/settings/keys.
+Note that a single ssh key cannot be used for both at once.
+
 ### Python environment
 
 Next, create a Python environment with Anaconda (which we unfortunately have to use here because we need `faiss-gpu` for fast clustering in the CACC algorithm).
 Download Anaconda, then, from the Anaconda prompt:
 
+    start-ssh-agent
+    ssh git@github.com
     conda env create -f environment.yml
+
 
 ### PostgreSQL
 
