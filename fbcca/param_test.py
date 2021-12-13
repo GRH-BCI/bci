@@ -8,7 +8,7 @@ import numpy as np
 import click
 
 from bci.eeg import EEG
-from model import load_model
+from param_search import load_model
 from bci.util import RealtimeModel
 
 import optuna

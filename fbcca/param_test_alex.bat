@@ -1,4 +1,5 @@
-
+setlocal
+set PYTHONPATH=%cd%\..;%PYTHONPATH%
 python param_test.py ^
     postgresql://postgres:i5gMr!Pfcdm$dn8YqhTf#$hL?jkb@localhost:5432/postgres ^
     "2021-10-30-01-03-55-alex-window_size=3.5" ^
@@ -10,4 +11,5 @@ python param_test.py ^
     --eeg 2021-08-19-19-53-46 ^
     --eeg 2021-08-19-21-46-04 ^
     --eeg 2021-08-19-21-52-46 ^
-    --eeg 2021-08-19-22-00-58 ^
+    --eeg 2021-08-19-22-00-58
+endlocal

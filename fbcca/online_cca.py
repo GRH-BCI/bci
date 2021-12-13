@@ -33,21 +33,18 @@ def experiment(app: App, *, model: RealtimeModel):
 
 
 if __name__ == '__main__':
-    config = json.load(open('config.json'))
-
-    study = optuna.load_study(config['optuna_study_name'],
-                              storage=config['optuna_storage'])
-    trial = study.best_trial
-
+    window_size = 3.5
     n_preds = 4
     preds_per_sec = 4
+    study_name = '2021-11-05-08-05-49-hosein-window_size=3.5'
+    db = 'postgresql://postgres:i5gMr!Pfcdm$dn8YqhTf#$hL?jkb@localhost:5432/postgres'
 
-    window_size = trial.params['window_size']
+    study = optuna.load_study(study_name, storage=db)
+    trial = study.best_trial
+
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
     App(
         fullscreen=True,
         experiment_func=partial(main, model=model),
-        headset_port=config['headset_port'],
-        leds_port=config['leds_port'],
     ).loop()

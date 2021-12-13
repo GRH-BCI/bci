@@ -10,7 +10,7 @@ import numpy as np
 import optuna as optuna
 
 from bci.app import App
-from fbcca.model import load_model
+from fbcca.param_search import load_model
 from bci.util import FileRecorder, InputDistributor, RealtimeModel
 
 
@@ -65,29 +65,25 @@ def experiment(app: App, *, model: RealtimeModel, path: Path):
 
 
 if __name__ == '__main__':
-    config = json.load(open('config.json'))
-
-    timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    path = Path(config['dataset_path']) / timestamp
-    path.mkdir(parents=True, exist_ok=False)
-
-    study = optuna.load_study(config['optuna_study_name'],
-                              storage=config['optuna_storage'])
-    trial = study.best_trial
-
+    window_size = 3.5
     n_preds = 4
     preds_per_sec = 4
+    study_name = '2021-11-05-08-05-49-hosein-window_size=3.5'
+    db = 'postgresql://postgres:i5gMr!Pfcdm$dn8YqhTf#$hL?jkb@localhost:5432/postgres'
+
+    timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    path = Path('C:/datasets/wearable-sensing') / timestamp
+    path.mkdir(parents=True, exist_ok=False)
+
+    study = optuna.load_study(study_name, storage=db)
+    trial = study.best_trial
 
     pickle.dump(trial, open(path/'trial.pickle', 'wb'))
     json.dump({'n_preds': n_preds, 'preds_per_sec': preds_per_sec}, open(path/'metadata.json', 'w'))
 
-    # window_size = 7
-    window_size = trial.params['window_size']
     model = load_model(trial, window_size=window_size)
     model = RealtimeModel(model, window_size=window_size, n_preds=n_preds, preds_per_sec=preds_per_sec)
     App(
         fullscreen=True,
         experiment_func=partial(main, model=model, path=path),
-        headset_port=config['headset_port'],
-        leds_port=config['leds_port'],
     ).loop()

@@ -52,20 +52,13 @@ def experiment(app: App, window_size: float, n_repeats: int):
 
 
 if __name__ == '__main__':
-    config = json.load(open('config.json'))
-
     timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    path = Path(config['dataset_path']) / timestamp
+    path = Path('C:/datasets/wearable-sensing') / timestamp
     path.mkdir(parents=True, exist_ok=False)
 
-    # n_repeats = 4
-    # window_size = 5
     n_repeats = 4
     window_size = 10
-    # window_size = 5
     App(
         fullscreen=True,
         experiment_func=partial(main, path=path, window_size=window_size, n_repeats=n_repeats),
-        headset_port=config['headset_port'],
-        leds_port=config['leds_port'],
     ).loop()
