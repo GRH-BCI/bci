@@ -9,9 +9,9 @@ Library and helper scripts for SSVEP classification using various forms of Canon
 For faster CCA coefficient calculations I use a fork of `svcca`, which is a Google library built for analyzing deep neural networks.
 To eventually be able to install it, you have to make an ssh key and add it to your GitHub account (see https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account):
 
-    ssh-keygen -t ed25519 -C "your_email@example.com"
-    ssh-add %userprofile%/.ssh/id_ed25519
-    clip %userprofile%/.ssh/id_ed25519
+    ssh-keygen -t ed25519 -C "hbahari@ualberta.com"
+    start-ssh-agent
+    clip < %userprofile%/.ssh/id_ed25519.pub
 
 then paste the clipboard contents in the "Key" field after clicking on "New SSH Key" in the "SSH and GPG keys" section of your GitHub  settings.
 

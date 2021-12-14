@@ -5,5 +5,5 @@ python param_search.py ^
     --subject trung ^
     --eeg 2021-10-28-11-08-51 ^
     --eeg 2021-10-28-11-45-12 ^
-    --eeg 2021-10-28-11-53-11 ^
+    --eeg 2021-10-28-11-53-11
 endlocal
